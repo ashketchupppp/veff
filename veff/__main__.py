@@ -5,6 +5,7 @@ import json
 import sys
 
 import log
+import video
 from config_schema import validate_config
 
 ARGS = sys.argv[1:]
@@ -35,3 +36,6 @@ try:
     config_valid = validate_config(CONFIG)
 except BaseException as err:
     log.err(f'{CONFIG_PATH} invalid: {err}')
+
+video = video.Video(CONFIG['file'])
+video.read()
