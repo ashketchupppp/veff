@@ -1,0 +1,7 @@
+moviepy
+pydub
+numpy
+opencv-python
+enlighten
+pep8
+pylint
