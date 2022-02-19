@@ -5,3 +5,5 @@ opencv-python
 enlighten
 pep8
 pylint
+colorama
+schema
