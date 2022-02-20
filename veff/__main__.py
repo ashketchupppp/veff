@@ -54,6 +54,7 @@ for effectConfig in CONFIGURED_EFFECTS:
     currentEffect = effectConfig['effect']
     frames = EFFECTS[currentEffect](frames, effectConfig)
 
+# TOOD: Support more than mp4
 if utils.is_linux():
   fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 else:
