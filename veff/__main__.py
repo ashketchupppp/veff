@@ -3,14 +3,16 @@
 
 import json
 import sys
+import shutil
 
 import cv2
+import numpy as np
 
-import utils
-import log
-import video
+from utils import temp_file_cleanup
+from video import VideoReader
 from config_schema import validate_config
-from effects import EFFECTS
+from effects import batch_apply
+import log
 
 ARGS = sys.argv[1:]
 DEFAULT_CONFIG_PATH = 'veff.config.json'
@@ -44,27 +46,19 @@ except BaseException as err:
 INPUT_PATH = CONFIG['filepath']
 OUTPUT_PATH = CONFIG['outputFilePath']
 CONFIGURED_EFFECTS = CONFIG['effects']
-
-inputVideo = video.Video(INPUT_PATH)
-inputVideo.openForRead()
-inputVideo.read()
-frames = inputVideo.data
-
-for effectConfig in CONFIGURED_EFFECTS:
-    currentEffect = effectConfig['effect']
-    frames = EFFECTS[currentEffect](frames, effectConfig)
-
-# TOOD: Support more filetypes than mp4
-if utils.is_linux():
-  fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+if 'maxBatchSize' in CONFIG:
+    MAX_BATCH_SIZE = CONFIG['maxBatchSize']
 else:
-  fourcc = inputVideo.fourcc
+    MAX_BATCH_SIZE = 60
 
-outputVideo = video.Video(OUTPUT_PATH)
-outputVideo.openForWrite(fourcc, inputVideo.fps, inputVideo.width, inputVideo.height)
-pbar = log.progress_bar(len(frames), f'Writing to {OUTPUT_PATH}', 'frames')
-for frame in frames:
-    outputVideo.writeFrame(frame)
-    pbar.update()
+video = VideoReader(INPUT_PATH)
+try:
+    for effectConfig in CONFIGURED_EFFECTS:
+        currentEffect = effectConfig['effect']
+        video = batch_apply(video, currentEffect, effectConfig, MAX_BATCH_SIZE)
 
-outputVideo.close()
+    video.close()
+    cv2.destroyAllWindows()
+    shutil.copy(video.path, OUTPUT_PATH)
+finally:
+    temp_file_cleanup()

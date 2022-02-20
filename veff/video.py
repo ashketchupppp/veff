@@ -3,139 +3,119 @@ import os
 from moviepy.editor import *
 import subprocess
 import audio
+import numpy as np
+import io
 
-from utils import get_temp_file
+from utils import LimitedList
+import log
 
-class Video:
-    class WrongOpenType(Exception):
-        pass
-    class NotOpen(Exception):
-        pass
-
-    def __init__(self, path):
-        self._path = path
-        self._audio = None
-        self.opened_for_read = False
-        self.opened_for_write = False
-        self._reader = None
-        self._writer = None
-        self.written_frame_count = 0
-        self.data = []
-
-    def openForRead(self):
-        if os.path.exists(self.path):
-            self._reader = cv2.VideoCapture(self.path)
-            self.opened_for_read = True
-        else:
-            raise FileNotFoundError
-
-    def openForWrite(self, fourcc, fps, width, height):
-        if not os.path.exists(os.path.dirname(self.path)):
-            if len(os.path.dirname(self.path)) > 0:
-                os.makedirs(os.path.dirname(self.path))
-        self._writer = cv2.VideoWriter(
-            self.path,
-            fourcc,
-            fps,
-            (width, height)
-        )
-        if self._writer:
-          self.opened_for_write = True
+class VideoFileHandler:
+    def __init__(self):
+        self.handle = None
+        self.open = True
 
     def close(self):
-        if self._reader != None:
-            self._reader.release()
-            self._reader = None
-            self.opened_for_read = False
-
-        if self._writer != None:
-            self._writer.release()
-            tempFile = get_temp_file()
-            if self.audio:
-                subprocess.run([
-                    "ffmpeg", "-y", 
-                    "-i", self.path, "-i", self.audio.path, 
-                    "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-shortest", tempFile
-                ], capture_output=True)
-                os.remove(self.path)
-                subprocess.run([
-                    "ffmpeg", "-y", 
-                    "-i", tempFile, "-i", self.audio.path, 
-                    "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-shortest", self.path
-                ], capture_output=True)
-            self._writer = None
-            self.opened_for_write = False
-            self.written_frame_count = 0
-
-    def readFrame(self):
-        if self.opened_for_write:
-            raise Video.WrongOpenType
-        return self._reader.read()
-
-    def writeFrame(self, frame):
-        if self.opened_for_read:
-            raise Video.WrongOpenType
-        res = self._writer.write(frame)
-        self.written_frame_count += 1
-        return res
-
-    def read(self):
-        success = True
-        if not self.opened:
-            self.openForRead()
-        while self.opened and success:
-            success, frame = self.readFrame()
-            self.data.append(frame)
-
-    @property
-    def audio(self):
-        return self._audio
-
-    @audio.setter
-    def audio(self, path):
-        self._audio = audio.Audio(path)
-
-    @property
-    def path(self):
-        return self._path
+        ''' Closes the file '''
+        self.handle.release()
+        self.handle = None
+        self.open = False
 
     @property
     def fps(self):
-        if self.opened_for_read:
-            return int(self._reader.get(cv2.CAP_PROP_FPS))
-        elif self.opened_for_write:
-            return int(self._writer.get(cv2.CAP_PROP_FPS))
+        return int(self.handle.get(cv2.CAP_PROP_FPS))
 
     @property
     def fourcc(self):
-        if self.opened_for_read:
-            return int(self._reader.get(cv2.CAP_PROP_FOURCC))
-        elif self.opened_for_write:
-            return int(self._writer.get(cv2.CAP_PROP_FOURCC))
+        return int(self.handle.get(cv2.CAP_PROP_FOURCC))
 
     @property
     def width(self):
-        if self.opened_for_read:
-            return int(self._reader.get(cv2.CAP_PROP_FRAME_WIDTH))
-        elif self.opened_for_write:
-            return int(self._writer.get(cv2.CAP_PROP_FRAME_WIDTH))
+        return int(self.handle.get(cv2.CAP_PROP_FRAME_WIDTH))
 
     @property
     def height(self):
-        if self.opened_for_read:
-            return int(self._reader.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        elif self.opened_for_write:
-            return int(self._writer.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        return int(self.handle.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+class VideoReader(VideoFileHandler):
+    def __init__(self, path, num_previous_frames=2):
+        super().__init__()
+        self.path = path
+        self.current_index = 0
+        self.previous = LimitedList(num_previous_frames)
+        if os.path.exists(path):
+            self.handle = cv2.VideoCapture(self.path)
+        else:
+            raise FileNotFoundError(path)
+
+    def set_previous_length(self, length: int):
+        self.previous.set_size_limit(length)
+
+    def read(self, num_frames_to_read=1):
+        ''' Reads the passed number of frames and returns them in a list '''
+        if not self.open:
+            raise ValueError('I/O operation on closed file.')
+        frames = []
+        for i in range(num_frames_to_read):
+            success, frame = self.handle.read()
+            if not success:
+                return frames
+            else:
+                frames.append(frame)
+        if len(frames) == 1:
+            return frames[0]
+        for i in range(len(frames)):
+            self.previous.append(frames[i])
+        return frames
 
     @property
-    def framesWritten(self):
-        return self.written_frame_count
+    def frame_count(self):
+        return int(self.handle.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    @property
-    def frameCount(self):
-        if self.opened_for_read:
-            return int(self._reader.get(cv2.CAP_PROP_FRAME_COUNT))
+    def __next__(self):
+        if self.open:
+            yield self.read()
+        else:
+            raise StopIteration
 
-    @property
-    def opened(self):
-        return self.opened_for_read or self.opened_for_write
+    def __iter__(self):
+        if self.open:
+            yield self.read()
+        else:
+            raise StopIteration
+
+class VideoWriter(VideoFileHandler):
+    def __init__(self, path, width=1280, height=720, fps=30, fourcc=cv2.VideoWriter_fourcc(*'mp4v')):
+        super().__init__()
+        self.path = path
+        if not os.path.exists(path):
+            self.handle = cv2.VideoWriter(
+                self.path,
+                fourcc,
+                fps,
+                (width, height)
+            )
+        else:
+            self.close()
+            raise FileExistsError(path)
+
+    def write(self, frames):
+        ''' Writes the passed frames '''
+        if len(frames) == 0:
+            raise ValueError('Cannot write 0 frames to file')
+        for i in range(len(frames)):
+            self.handle.write(np.uint8(frames[i]))
+        return frames
+
+def open_writer_for_read(writer: VideoWriter):
+    path = writer.path
+    writer.close()
+    return VideoReader(path)
+
+def open_reader_for_write(reader: VideoReader):
+    fourcc = reader.fourcc
+    width = reader.width
+    height = reader.height
+    fps = reader.fps
+    path = reader.path
+    reader.close()
+    return VideoWriter(path, width, height, fps, fourcc)
