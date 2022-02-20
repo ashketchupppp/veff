@@ -1,7 +1,8 @@
 ''' Video effects '''
 
-def none():
+def none(frames, config):
     ''' Null effect '''
+    return frames
 
 EFFECTS = {
     'none': none

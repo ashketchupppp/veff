@@ -1,6 +1,7 @@
 {
     "config": "veff.config.json",
-    "file": "kingfisher.mp4",
+    "filepath": "kingfisher.mp4",
+    "outputFilePath": "kingfisher_2.mp4",
     "effects": [{
         "effect": "none"
     }]

@@ -4,7 +4,7 @@ from moviepy.editor import *
 import subprocess
 import audio
 
-from utils import getTempFile
+from utils import get_temp_file
 
 class Video:
     class WrongOpenType(Exception):
@@ -39,6 +39,8 @@ class Video:
             fps,
             (width, height)
         )
+        if self._writer:
+          self.opened_for_write = True
 
     def close(self):
         if self._reader != None:
@@ -48,7 +50,7 @@ class Video:
 
         if self._writer != None:
             self._writer.release()
-            tempFile = getTempFile()
+            tempFile = get_temp_file()
             if self.audio:
                 subprocess.run([
                     "ffmpeg", "-y", 
@@ -84,7 +86,6 @@ class Video:
         while self.opened and success:
             success, frame = self.readFrame()
             self.data.append(frame)
-        self.close()
 
     @property
     def audio(self):

@@ -4,9 +4,13 @@
 import json
 import sys
 
+import cv2
+
+import utils
 import log
 import video
 from config_schema import validate_config
+from effects import EFFECTS
 
 ARGS = sys.argv[1:]
 DEFAULT_CONFIG_PATH = 'veff.config.json'
@@ -37,5 +41,29 @@ try:
 except BaseException as err:
     log.err(f'{CONFIG_PATH} invalid: {err}')
 
-video = video.Video(CONFIG['file'])
-video.read()
+INPUT_PATH = CONFIG['filepath']
+OUTPUT_PATH = CONFIG['outputFilePath']
+CONFIGURED_EFFECTS = CONFIG['effects']
+
+inputVideo = video.Video(INPUT_PATH)
+inputVideo.openForRead()
+inputVideo.read()
+frames = inputVideo.data
+
+for effectConfig in CONFIGURED_EFFECTS:
+    currentEffect = effectConfig['effect']
+    frames = EFFECTS[currentEffect](frames, effectConfig)
+
+if utils.is_linux():
+  fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+else:
+  fourcc = inputVideo.fourcc
+
+outputVideo = video.Video(OUTPUT_PATH)
+outputVideo.openForWrite(fourcc, inputVideo.fps, inputVideo.width, inputVideo.height)
+pbar = log.progress_bar(len(frames), f'Writing to {OUTPUT_PATH}', 'frames')
+for frame in frames:
+    outputVideo.writeFrame(frame)
+    pbar.update()
+
+outputVideo.close()
