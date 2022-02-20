@@ -56,12 +56,12 @@ for effectConfig in CONFIGURED_EFFECTS:
 
 # TOOD: Support more filetypes than mp4
 if utils.is_linux():
-  fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    encoding = cv2.VideoWriter_fourcc(*'mp4v')
 else:
-  fourcc = inputVideo.fourcc
+    encoding = inputVideo.fourcc
 
 outputVideo = video.Video(OUTPUT_PATH)
-outputVideo.openForWrite(fourcc, inputVideo.fps, inputVideo.width, inputVideo.height)
+outputVideo.openForWrite(encoding, inputVideo.fps, inputVideo.width, inputVideo.height)
 pbar = log.progress_bar(len(frames), f'Writing to {OUTPUT_PATH}', 'frames')
 for frame in frames:
     outputVideo.writeFrame(frame)

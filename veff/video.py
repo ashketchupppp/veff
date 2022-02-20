@@ -3,6 +3,7 @@ import os
 from moviepy.editor import *
 import subprocess
 import audio
+import numpy as np
 
 from utils import get_temp_file
 
@@ -72,9 +73,11 @@ class Video:
             raise Video.WrongOpenType
         return self._reader.read()
 
-    def writeFrame(self, frame):
+    def writeFrame(self, frame: np.ndarray):
         if self.opened_for_read:
             raise Video.WrongOpenType
+        if frame.dtype != np.uint8:
+            frame = np.uint8(frame)
         res = self._writer.write(frame)
         self.written_frame_count += 1
         return res
