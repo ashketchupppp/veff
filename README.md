@@ -6,6 +6,7 @@ Took inspiration from Webpack
 
 ## Todo
  - Change the config file to be a python file instead of a JSON document, to give the user more control over the options they pass.
+ - Rolling video loading. At the moment we load an entire video into memory which uses up a ridiculous amount of memory. Instead we should load and process the input video in batches.
 
 ## Effect ideas
 
