@@ -16,7 +16,8 @@ class VideoFileHandler:
 
     def close(self):
         ''' Closes the file '''
-        self.handle.release()
+        if bool(self.handle):
+            self.handle.release()
         self.handle = None
         self.open = False
 

@@ -28,11 +28,25 @@ def frame_difference(frames: list, config: dict, writer: VideoWriter, update=lam
         update()
     writer.write(new_frames)
 
+def pixel_range(frames: list, config: dict, writer: VideoWriter, update=lambda x: None):
+    upper_bound = 245
+    lower_bound = 10
+    frame = frames[0]
+    frame[lower_bound > frame] = 0
+    frame[upper_bound < frame] = 0
+    writer.write([frame])
+    update()
+
 effects = {
     'frame_difference': {
         'batch_size': 2,
         'progress_name': 'Frame differencing',
         'method': frame_difference
+    },
+    'pixel_range_filter': {
+        'batch_size': 1,
+        'progress_name': 'Pixel range filter',
+        'method': pixel_range
     }
 }
 
@@ -62,42 +76,6 @@ def batch_apply(video: VideoReader, effect_name: str, effect_config: dict):
         batch_frames.pop(0)
         batch_frames = [*batch_frames, *video.read(1)]
 
-    return open_writer_for_read(writer)
-
-def multiprocess_frame_difference(frames, config):
-    ''' Applies frame differencing using multiprocess.
-        Don't use this, I'm just keeping it here as an example for how you would write
-        a multiprocess function if I needed one in the future.
-    '''
-    pbar = log.progress_bar(len(frames), 'Frame differencing', 'frames')
-    previous = frames[0]
-    prev_std_deviation = np.std(previous)
-    new_frames = []
-
-    frame_pairs = [(frames[i], frames[i + 1]) for i in range(len(frames[:-1]))]
-    assert all([len(fp) == 2 for fp in frame_pairs])
-    with mp.Pool(mp.cpu_count()) as pool:
-        time.clock()
-        new_frames = pool.starmap(diff_arrays, frame_pairs, len(frames) // 4)
-        print(time.clock())
-    return new_frames
-
-def frame_interpolation(frames, config):
-    ''' Inserts new frames that are the average of each two frames '''
-    interpolation_passes = 2
-    pbar = log.progress_bar(len(frames), 'Slow motion interpolation', 'frames')
-    new_frames = []
-    i = 0
-    while i < len(frames) - 2:
-        current_frame = frames[i]
-        next_frame = frames[i + 1]
-        difference_frame = np.absolute(
-            np.subtract(np.int16(current_frame), np.int16(next_frame))
-        )
-        interpolated_frame = current_frame + (difference_frame * (1 / interpolation_passes))
-        new_frames.append(current_frame)
-        new_frames.append(interpolated_frame)
-
-        pbar.update()
-        i += 1
-    return new_frames
+    reader = open_writer_for_read(writer)
+    writer.close()
+    return reader

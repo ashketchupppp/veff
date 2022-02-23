@@ -56,5 +56,7 @@ try:
     video.close()
     cv2.destroyAllWindows()
     shutil.copy(video.path, OUTPUT_PATH)
+except Exception as err:
+    log.err(f'Unexpected error occurred: {err}')
 finally:
     temp_file_cleanup()
