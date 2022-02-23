@@ -1,12 +1,10 @@
 ''' Video effects '''
 
-from abc import ABC, abstractclassmethod
-import multiprocessing as mp
-from cv2 import VideoWriter
 import numpy as np
-from utils import diff_arrays, get_temp_file
-from schema import Schema, And
+import cv2
 
+from video import VideoWriter
+from utils import diff_arrays, get_temp_file
 from video import VideoReader, VideoWriter, open_writer_for_read
 import log
 
@@ -17,11 +15,6 @@ def frame_difference(frames: list, config: dict, writer: VideoWriter, update=lam
     new_frames = []
     for frame in frames[1:]:
         new_frame = diff_arrays(previous, frame)
-        # eliminate flashes when the scene changes
-        # std_deviation = np.std(new_frame)
-        # if std_deviation < 10 * prev_std_deviation:
-        #    new_frames.append(new_frame)
-        # prev_std_deviation = std_deviation
         new_frames.append(new_frame)
         previous = frame
         update()
@@ -29,12 +22,36 @@ def frame_difference(frames: list, config: dict, writer: VideoWriter, update=lam
 
 def pixel_range(frames: list, config: dict, writer: VideoWriter, update=lambda x: None):
     ''' Removes all pixels above the upper bound and below the lower bound '''
-    upper_bound = 245
-    lower_bound = 10
-    frame = frames[0]
-    frame[lower_bound > frame] = 0
-    frame[upper_bound < frame] = 0
-    writer.write([frame])
+    upper_bound = config['upper_bound']
+    lower_bound = config['lower_bound']
+    frames[0][lower_bound > frames[0]] = 0
+    frames[0][upper_bound < frames[0]] = 0
+    writer.write([frames[0]])
+    update()
+
+def std_deviation_filter(frames: list, config: dict, writer: VideoWriter, update=lambda x: None):
+    ''' Removes all pixels above or below the passed number of standard deviations (of pixel values) '''
+    num_std_devs = config['num_std_devs']
+    std_deviation = np.std(frames[0])
+    mean = np.mean(frames[0])
+    percentile = 0.01
+    bound = mean + (std_deviation * percentile)
+    frames[0][(255 // 2) - bound > frames[0]] = 0
+    frames[0][(255 // 2) + bound < frames[0]] = 0
+    writer.write([frames[0]])
+    update()
+
+def grayscale(frames: list, config: dict, writer: VideoWriter, update=lambda x: None):
+    ''' Grayscales the image '''
+    frame_mean_pixel_colors = np.mean(frames[0], axis=(2))
+    frames[0] = np.repeat(frame_mean_pixel_colors[:, :, np.newaxis], 3, axis=2)
+    writer.write([frames[0]])
+    update()
+
+def bilateral_filter(frames: list, config: dict, writer: VideoWriter, update=lambda x: None):
+    ''' Grayscales the image '''
+    frames[0] = cv2.fastNlMeansDenoisingColored(frames[0], None, 10, 10, 7, 21)
+    writer.write([frames[0]])
     update()
 
 effects = {
@@ -47,6 +64,21 @@ effects = {
         'batch_size': 1,
         'progress_name': 'Pixel range filter',
         'method': pixel_range
+    },
+    'std_deviation_filter': {
+        'batch_size': 1,
+        'progress_name': 'Standard deviation filter',
+        'method': std_deviation_filter
+    },
+    'grayscale': {
+        'batch_size': 1,
+        'progress_name': 'Grayscaling',
+        'method': grayscale
+    },
+    'bilateral_filter': {
+        'batch_size': 1,
+        'progress_name': 'Bilateral filtering',
+        'method': bilateral_filter
     }
 }
 

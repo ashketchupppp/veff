@@ -4,7 +4,13 @@ from os import path
 from functools import partial
 from schema import Schema, And, Or
 
-from effects import is_effect, pixel_range, frame_difference
+from effects import (
+    pixel_range,
+    frame_difference,
+    std_deviation_filter,
+    grayscale,
+    bilateral_filter
+)
 
 def is_path(p: str):
     ''' Returns true if p is a valid path '''
@@ -27,9 +33,13 @@ configSchema = Schema({
             'upper_bound': int,
             'lower_bound': int
         },
+        { 'effect': frame_difference.__name__ },
         {
-            'effect': frame_difference.__name__
-        }
+            'effect': std_deviation_filter.__name__,
+            'num_std_devs': int
+        },
+        { 'effect': grayscale.__name__ },
+        { 'effect': bilateral_filter.__name__ },
     )]
 })
 

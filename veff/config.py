@@ -1,11 +1,10 @@
 CONFIG = {
-    "filepath": "videos/apex_frame_difference.mp4",
-    "outputFilePath": "videos/apex_pixel_filter.mp4",
+    "filepath": "videos/kingfisher_frame_difference.mp4",
+    "outputFilePath": "videos/kingfisher_stddev.mp4",
     "effects": [
-        { 
-            "effect": "pixel_range",
-            "upper_bound": 240,
-            "lower_bound": 15
+        {
+            "effect": 'std_deviation_filter',
+            'num_std_devs': 4
         }
     ]
 }

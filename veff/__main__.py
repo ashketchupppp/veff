@@ -33,10 +33,10 @@ try:
         currentEffect = effectConfig['effect']
         video = batch_apply(video, currentEffect, effectConfig)
 
-    video.close()
-    cv2.destroyAllWindows()
-    shutil.copy(video.path, OUTPUT_PATH)
 except Exception as err:
     log.err(f'Unexpected error occurred: {err}')
 finally:
+    video.close()
+    shutil.copy(video.path, OUTPUT_PATH)
+    cv2.destroyAllWindows()
     temp_file_cleanup()
