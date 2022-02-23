@@ -5,8 +5,7 @@ import multiprocessing as mp
 from cv2 import VideoWriter
 import numpy as np
 from utils import diff_arrays, get_temp_file
-import time
-import datetime
+from schema import Schema, And
 
 from video import VideoReader, VideoWriter, open_writer_for_read
 import log
@@ -29,6 +28,7 @@ def frame_difference(frames: list, config: dict, writer: VideoWriter, update=lam
     writer.write(new_frames)
 
 def pixel_range(frames: list, config: dict, writer: VideoWriter, update=lambda x: None):
+    ''' Removes all pixels above the upper bound and below the lower bound '''
     upper_bound = 245
     lower_bound = 10
     frame = frames[0]
@@ -43,7 +43,7 @@ effects = {
         'progress_name': 'Frame differencing',
         'method': frame_difference
     },
-    'pixel_range_filter': {
+    'pixel_range': {
         'batch_size': 1,
         'progress_name': 'Pixel range filter',
         'method': pixel_range
