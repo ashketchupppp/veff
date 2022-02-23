@@ -19,7 +19,6 @@ def is_filetype(p: str, _type: str):
     return p.endswith(f'.{_type}')
 
 configSchema = Schema({
-    'config': And(str, is_path),
     'filepath': And(str, partial(is_filetype, _type='mp4'), is_file),
     'outputFilePath': And(str, partial(is_filetype, _type='mp4')),
     'effects': [{
