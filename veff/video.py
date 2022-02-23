@@ -40,8 +40,7 @@ class VideoReader(VideoFileHandler):
     def __init__(self, path, num_previous_frames=2):
         super().__init__()
         self.path = path
-        self.current_index = 0
-        self.previous = LimitedList(num_previous_frames)
+        self.frames_read = 0
         if os.path.exists(path):
             self.handle = cv2.VideoCapture(self.path)
         else:
@@ -55,16 +54,13 @@ class VideoReader(VideoFileHandler):
         if not self.open:
             raise ValueError('I/O operation on closed file.')
         frames = []
-        for i in range(num_frames_to_read):
+        i = 0
+        while i < num_frames_to_read:
             success, frame = self.handle.read()
-            if not success:
-                return frames
-            else:
+            if success:
+                self.frames_read += 1
                 frames.append(frame)
-        if len(frames) == 1:
-            return frames[0]
-        for i in range(len(frames)):
-            self.previous.append(frames[i])
+                i += 1
         return frames
 
     @property

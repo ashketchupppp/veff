@@ -1,9 +1,10 @@
 {
     "config": "veff.config.json",
-    "filepath": "kingfisher.mp4",
-    "outputFilePath": "kingfisher_frame_difference.mp4",
-    "maxBatchSize": 60,
+    "filepath": "apex.mp4",
+    "outputFilePath": "apex_frame_difference.mp4",
     "effects": [
-        { "effect": "frame_difference" }
+        { 
+            "effect": "frame_difference"
+        }
     ]
 }

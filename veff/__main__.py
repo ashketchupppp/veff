@@ -46,16 +46,12 @@ except BaseException as err:
 INPUT_PATH = CONFIG['filepath']
 OUTPUT_PATH = CONFIG['outputFilePath']
 CONFIGURED_EFFECTS = CONFIG['effects']
-if 'maxBatchSize' in CONFIG:
-    MAX_BATCH_SIZE = CONFIG['maxBatchSize']
-else:
-    MAX_BATCH_SIZE = 60
 
 video = VideoReader(INPUT_PATH)
 try:
     for effectConfig in CONFIGURED_EFFECTS:
         currentEffect = effectConfig['effect']
-        video = batch_apply(video, currentEffect, effectConfig, MAX_BATCH_SIZE)
+        video = batch_apply(video, currentEffect, effectConfig)
 
     video.close()
     cv2.destroyAllWindows()

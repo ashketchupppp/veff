@@ -24,8 +24,7 @@ configSchema = Schema({
     'outputFilePath': And(str, partial(is_filetype, _type='mp4')),
     'effects': [{
         'effect': And(str, is_effect)
-    }],
-    'maxBatchSize': And(int, lambda x: x > 0)
+    }]
 })
 
 def validate_config(config: dict):
