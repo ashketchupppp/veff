@@ -6,8 +6,9 @@ import numpy as np
 import uuid
 import os
 import shutil
+import subprocess
 
-temp_location = './temp'
+temp_location = '.' + os.path.sep + 'temp'
 
 def get_temp_file(extension=''):
     ''' Opens and returns a temporary file which will be deleted when the file is closed. '''
@@ -65,3 +66,10 @@ class LimitedList:
     def __iter__(self):
         for value in self.values:
             yield value
+
+def ffmpeg(path_in, path_out):
+    subprocess.run([
+        'ffmpeg',
+        '-i', path_in,
+        path_out
+    ])

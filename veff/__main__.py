@@ -1,14 +1,15 @@
 ''' Python video processing pipeline and library.
 '''
 
-import json
+import os
 import sys
 import shutil
+import uuid
+from pathlib import Path, PurePath
 
 import cv2
-import numpy as np
 
-from utils import temp_file_cleanup
+from utils import temp_file_cleanup, ffmpeg
 from video import VideoReader
 from config_schema import validate_config
 from effects import batch_apply
@@ -27,6 +28,13 @@ INPUT_PATH = CONFIG['filepath']
 OUTPUT_PATH = CONFIG['outputFilePath']
 CONFIGURED_EFFECTS = CONFIG['effects']
 
+if os.path.exists(OUTPUT_PATH):
+    OLD_OUTPUT_PATH = OUTPUT_PATH
+    path_split = [*PurePath(OLD_OUTPUT_PATH).parts]
+    path_split[-1] = str(uuid.uuid4())[0:4] + '-' + path_split[-1]
+    OUTPUT_PATH = str(os.path.sep.join(path_split))
+    log.log(f'{OLD_OUTPUT_PATH} already exists! Using {OUTPUT_PATH} instead')
+
 video = VideoReader(INPUT_PATH)
 try:
     for effectConfig in CONFIGURED_EFFECTS:
@@ -37,6 +45,6 @@ except Exception as err:
     log.err(f'Unexpected error occurred: {err}')
 finally:
     video.close()
-    shutil.copy(video.path, OUTPUT_PATH)
+    ffmpeg(video.path, OUTPUT_PATH)
     cv2.destroyAllWindows()
     temp_file_cleanup()

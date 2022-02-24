@@ -91,6 +91,10 @@ class VideoWriter(VideoFileHandler):
                 fps,
                 (width, height)
             )
+            self._width = width
+            self._height = height
+            self._fps = fps
+            self._fourcc = fourcc
         else:
             self.close()
             raise FileExistsError(path)
@@ -102,6 +106,22 @@ class VideoWriter(VideoFileHandler):
         for i in range(len(frames)):
             self.handle.write(np.uint8(frames[i]))
         return frames
+
+    @property
+    def fps(self):
+        return self._fps
+
+    @property
+    def fourcc(self):
+        return self._fourcc
+
+    @property
+    def width(self):
+        return self._width
+
+    @property
+    def height(self):
+        return self._height
 
 def open_writer_for_read(writer: VideoWriter):
     path = writer.path
