@@ -69,7 +69,5 @@ class LimitedList:
 
 def ffmpeg(path_in, path_out):
     subprocess.run([
-        'ffmpeg',
-        '-i', path_in,
-        path_out
-    ])
+        'ffmpeg', '-i', path_in, path_out
+    ], cwd=os.getcwd())

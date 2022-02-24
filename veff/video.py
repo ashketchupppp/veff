@@ -62,6 +62,8 @@ class VideoReader(VideoFileHandler):
                 self.frames_read += 1
                 frames.append(frame)
                 i += 1
+            else:
+                break
         return frames
 
     @property
@@ -104,7 +106,7 @@ class VideoWriter(VideoFileHandler):
         if len(frames) == 0:
             raise ValueError('Cannot write 0 frames to file')
         for i in range(len(frames)):
-            self.handle.write(np.uint8(frames[i]))
+            self.handle.write(np.clip(np.uint8(frames[i]), 0, 255))
         return frames
 
     @property
