@@ -28,14 +28,13 @@ INPUT_PATH = CONFIG['filepath']
 OUTPUT_PATH = CONFIG['outputFilePath']
 CONFIGURED_EFFECTS = CONFIG['effects']
 
+OUTPUT_ROOT_DIR = os.path.dirname(OUTPUT_PATH)
+
+if not os.path.exists(OUTPUT_ROOT_DIR):
+    os.makedirs(OUTPUT_ROOT_DIR)
+
 if os.path.exists(OUTPUT_PATH):
     os.remove(OUTPUT_PATH)
-    # OLD_OUTPUT_PATH = OUTPUT_PATH
-    # path_split = [*PurePath(OLD_OUTPUT_PATH).parts]
-    # path_split[-1] = str(uuid.uuid4())[0:4] + '-' + path_split[-1]
-    # OUTPUT_PATH = str(os.path.sep.join(path_split))
-    # log.info(f'{OLD_OUTPUT_PATH} already exists! Using {OUTPUT_PATH} instead')
-    # make this a toggle-able option in the config
 
 video = VideoReader(INPUT_PATH)
 try:

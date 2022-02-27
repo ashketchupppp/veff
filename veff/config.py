@@ -1,33 +1,32 @@
+from os import path, sep
 
-videos_to_diff = '''
- Earths roation visualised https://www.youtube.com/watch?v=1zJ9FnQXmJI
- Night sky
- Aurora borealis
- Ocean waves
- Trees swaying in the wind
- Car crash
-'''
+# This is just an example configuration
+# Edit this and create your own
+
+INPUT_FILE_ROOT = 'videos/originals'
+INPUT_FILE_NAME = 'test_video.mp4'
+OUTPUT_FILE_ROOT = f'videos/{INPUT_FILE_NAME.split(".")[0]}'
+OUTPUT_FILE_NAME = INPUT_FILE_NAME
+OUTPUT_FILE_EXT = 'mp4'
 
 # ideally we have a recursive config
-# so that if you want to combine multiple videos together you can apply effects to the other inputted videos aswell
+# so that if you want to combine multiple videos together you can apply effects to 
+# the other inputted videos aswell
 # the whole top-level config schema would need to be replicated so an input is processed as defined
 # before being used as an input for another video
+
 CONFIG = {
-    "filepath": "videos/originals/water.mp4",
-    "outputFilePath": "videos/water_gabe.mp4",
+    "filepath": f"{INPUT_FILE_ROOT}{sep}{INPUT_FILE_NAME}",
     "effects": [
         {
             "effect": 'frame_difference',
             'batch_size': 2
-        },
-        # {
-        #     'effect': 'saturation',
-        #     'strength': 1.25
-        # },
-        {
-            'effect': 'overlay',
-            'second_video': 'videos/originals/water.mp4',
-            'strength': 0.35
         }
     ]
 }
+
+CONFIG['outputFilePath'] = f'{OUTPUT_FILE_ROOT}{sep}{OUTPUT_FILE_NAME.split()[0]}'
+for effect in CONFIG['effects']:
+    CONFIG['outputFilePath'] += f'_{effect["effect"]}'
+
+CONFIG['outputFilePath'] += '.' + OUTPUT_FILE_EXT
