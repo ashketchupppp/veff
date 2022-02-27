@@ -34,6 +34,7 @@ def median_bound_pass(frames: list, config: dict, writer: VideoWriter, update=la
 def denoise(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
     ''' Denoises the video using a wiener filter'''
     raise ItsFuckedError
+    # https://paperswithcode.com/paper/ffdnet-toward-a-fast-and-flexible-solution
     new_frame = signal.wiener(frames[0])
     writer.write([new_frame])
     update()
