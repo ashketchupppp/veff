@@ -13,6 +13,9 @@ import log
 
 # Could do some edge detection and then do something with the pixels at the edges???
 
+class ItsFuckedError(Exception):
+    pass # :) just commit your broken code its fiiiine
+
 def frame_difference(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
     ''' Applies a frame differencing effect to the passed frames '''
     new_frame = diff_arrays(frames[0], frames[-1])
@@ -21,6 +24,7 @@ def frame_difference(frames: list, config: dict, writer: VideoWriter, update=lam
 
 def median_bound_pass(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
     ''' Zero's out all pixels below the median '''
+    raise ItsFuckedError
     median_pixel_color = np.median(frames[0])
     lower_bound = config['multiplier'] *  median_pixel_color
     frames[0][lower_bound > frames[0]] = 0
@@ -29,6 +33,7 @@ def median_bound_pass(frames: list, config: dict, writer: VideoWriter, update=la
 
 def denoise(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
     ''' Denoises the video using a wiener filter'''
+    raise ItsFuckedError
     new_frame = signal.wiener(frames[0])
     writer.write([new_frame])
     update()
@@ -50,6 +55,7 @@ def decreasing(frames: list, config: dict, writer: VideoWriter, update=lambda x:
 
 def edge(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
     ''' Applies an edge detection algorithm to the video, not working atm '''
+    raise ItsFuckedError
     writer.write([cv2.Canny(frames[0], 100, 200)])
     update()
 
@@ -79,6 +85,7 @@ def std_deviation_filter(frames: list, config: dict, writer: VideoWriter, update
 
 def saturation(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
     ''' Increases the saturation of the image '''
+    raise ItsFuckedError
     # often leads to pixels being maxed out, leading to massive patches of red, green or blue
     # need a way to prevent this, maybe dividing the strength by a larger value or having it be a percentage
     strength = config['strength']
@@ -102,7 +109,7 @@ def bilateral_filter(frames: list, config: dict, writer: VideoWriter, update=lam
 
 def light_grayscale_detector(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
     ''' Increases and decreases the grayscale based on the mean amount of light in the frame '''
-    # doesnt work well
+    raise ItsFuckedError
     new_frame = np.abs(np.subtract(frames[1], frames[0]))
     amount_of_light = np.sum(new_frame) / (writer.width * writer.height * 255 * 3)
     increase = (255 * amount_of_light)
