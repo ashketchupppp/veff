@@ -11,3 +11,6 @@ __pycache__
 videos
 
 youtube-dl.exe
+yt-dlp.exe
+
+.netrc

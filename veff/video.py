@@ -63,12 +63,18 @@ class VideoReader(VideoFileHandler):
                 frames.append(frame)
                 i += 1
             else:
-                break
+                self.seek(self.curr_frame() - 1)
         return frames
 
     @property
     def frame_count(self):
         return int(self.handle.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    def curr_frame(self):
+        return self.handle.get(cv2.CAP_PROP_POS_FRAMES)
+
+    def seek(self, frame_num: int):
+        self.handle.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
 
     def __next__(self):
         if self.open:

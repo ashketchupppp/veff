@@ -16,14 +16,15 @@ import log
 def frame_difference(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
     ''' Applies a frame differencing effect to the passed frames '''
     new_frame = diff_arrays(frames[0], frames[-1])
-    current_stddev = np.std(new_frame)
-    try:
-        if current_stddev < 2 * frame_difference.prev_stddev:
-            writer.write([new_frame])
-    except AttributeError:
-        pass # prev_setddev hasnt been set yet
-    finally:
-        frame_difference.prev_stddev = current_stddev
+    writer.write([new_frame])
+    update()
+
+def median_bound_pass(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
+    ''' Zero's out all pixels below the median '''
+    median_pixel_color = np.median(frames[0])
+    lower_bound = config['multiplier'] *  median_pixel_color
+    frames[0][lower_bound > frames[0]] = 0
+    writer.write([frames[0]])
     update()
 
 def denoise(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
@@ -179,6 +180,11 @@ effects = {
         'batch_size': 1,
         'progress_name': 'Increasing saturation',
         'function': saturation
+    },
+    'median_bound_pass': {
+        'batch_size': 1,
+        'progress_name': 'Median pass',
+        'function': median_bound_pass
     }
 }
 
@@ -273,7 +279,8 @@ def apply(video: VideoReader, effect_name: str, effect_config: dict):
         'light_grayscale_detector': batch_apply,
         'denoise': batch_apply,
         'saturation': batch_apply,
-        'overlay': multi_input_batch_apply
+        'overlay': multi_input_batch_apply,
+        'median_bound_pass': batch_apply
     }
 
     return effect_methods[effect_name](video, effect_name, effect_config)

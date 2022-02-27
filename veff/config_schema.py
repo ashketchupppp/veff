@@ -16,7 +16,8 @@ from effects import (
     denoise,
     edge,
     overlay,
-    saturation
+    saturation,
+    median_bound_pass
 )
 
 def is_path(p: str):
@@ -50,7 +51,7 @@ configSchema = Schema({
         },
         {
             'effect': frame_difference.__name__,
-            'batch_size': And(int, partial(number_between, lower_bound=1.1, upper_bound=999))
+            'batch_size': And(int, partial(number_between, lower_bound=1.1, upper_bound=999)),
         },
         {
             'effect': grayscale.__name__,
@@ -70,6 +71,10 @@ configSchema = Schema({
             'effect': overlay.__name__,
             'second_video': And(str, partial(is_filetype, _type='mp4'), is_file),
             'strength': float
+        },
+        {
+            'effect': median_bound_pass.__name__,
+            'multiplier': Optional(float)
         }
     )]
 })
