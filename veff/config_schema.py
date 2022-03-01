@@ -4,6 +4,11 @@ from os import path
 from functools import partial
 from schema import Schema, And, Or, Optional
 
+from utils import (
+    is_file,
+    is_filetype,
+    number_between
+)
 from effects import (
     pixel_range,
     frame_difference,
@@ -17,24 +22,9 @@ from effects import (
     edge,
     overlay,
     saturation,
-    median_bound_pass
+    median_bound_pass,
+    FrameDifference
 )
-
-def is_path(p: str):
-    ''' Returns true if p is a valid path '''
-    return path.exists(p)
-
-def is_file(p: str):
-  ''' Returns True if p is an existing file '''
-  return path.isfile(p)
-
-def is_filetype(p: str, _type: str):
-    ''' Returns true if p is a valid path, is a file and has the passed filetype '''
-    return p.endswith(f'.{_type}')
-
-def number_between(num, lower_bound, upper_bound):
-    ''' Returns true if num is between lower_bound and upper_bound '''
-    return lower_bound <= num <= upper_bound
 
 configSchema = Schema({
     'filepath': And(str, partial(is_filetype, _type='mp4'), is_file),
@@ -49,10 +39,7 @@ configSchema = Schema({
             'effect': std_deviation_filter.__name__,
             'percentile': float
         },
-        {
-            'effect': frame_difference.__name__,
-            'batch_size': And(int, partial(number_between, lower_bound=1.1, upper_bound=999)),
-        },
+        FrameDifference.opt_schema(),
         {
             'effect': grayscale.__name__,
             'strength': And(float, partial(number_between, lower_bound=0, upper_bound=1))

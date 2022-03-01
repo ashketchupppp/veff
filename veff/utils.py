@@ -1,6 +1,6 @@
 ''' Utilities '''
 
-import tempfile
+from os import path
 import platform
 import numpy as np
 import uuid
@@ -45,6 +45,22 @@ def interleave(arr1, arr2):
 def diff_arrays(arr1, arr2):
     ''' Returns the difference between two numpy arrays '''
     return np.absolute(np.subtract(np.int16(arr1), np.int16(arr2)))
+
+def is_path(p: str):
+    ''' Returns true if p is a valid path '''
+    return path.exists(p)
+
+def is_file(p: str):
+  ''' Returns True if p is an existing file '''
+  return path.isfile(p)
+
+def is_filetype(p: str, _type: str):
+    ''' Returns true if p is a valid path, is a file and has the passed filetype '''
+    return p.endswith(f'.{_type}')
+
+def number_between(num, lower_bound, upper_bound):
+    ''' Returns true if num is between lower_bound and upper_bound '''
+    return lower_bound <= num <= upper_bound
 
 class LimitedList:
     def __init__(self, size_limit):

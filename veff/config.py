@@ -20,12 +20,8 @@ CONFIG = {
     "filepath": f"{INPUT_FILE_ROOT}{sep}{INPUT_FILE_NAME}",
     "effects": [
         {
-            "effect": 'frame_difference',
+            "effect": 'FrameDifference',
             'batch_size': 2
-        },
-        {
-            'effect': 'median_bound_pass',
-            'multiplier': 1.5
         }
     ]
 }

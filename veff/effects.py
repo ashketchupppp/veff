@@ -1,11 +1,13 @@
 ''' Video effects '''
 
-from uuid import SafeUUID
 from scipy import signal
 import numpy as np
 import cv2
-import matplotlib as mpl
+from abc import ABC, abstractclassmethod
+from schema import Schema, And, Optional
+from functools import partial
 
+from utils import number_between
 from video import VideoWriter
 from utils import diff_arrays, get_temp_file
 from video import VideoReader, VideoWriter, open_writer_for_read
@@ -13,14 +15,157 @@ import log
 
 # Could do some edge detection and then do something with the pixels at the edges???
 
-class ItsFuckedError(Exception):
-    pass # :) just commit your broken code its fiiiine
+class Effect(ABC):
+    @classmethod
+    def run(cls, video: VideoReader, effect_name: str, effect_config: dict):
+        ''' Reads the passed video in batches, applies the effect and
+            returns a VideoReader for the effected video
+        '''
+        cls.validate_schema(effect_config)
+        
+        pbar = log.progress_bar(video.frame_count, cls.progress_name(), 'frames')
 
-def frame_difference(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Applies a frame differencing effect to the passed frames '''
-    new_frame = diff_arrays(frames[0], frames[-1])
+        if 'batch_size' in effect_config:
+            batch_size = effect_config['batch_size']
+        else:
+            batch_size = cls.batch_size()
+
+        writer = VideoWriter(
+            get_temp_file(extension='mp4'),
+            width=video.width,
+            height=video.height,
+            fps=video.fps,
+            fourcc=video.fourcc
+        )
+
+        batch_frames = video.read(batch_size)
+
+        while video.frames_read < video.frame_count:
+            if len(batch_frames) > 0:
+                frame = cls.apply(batch_frames)
+                writer.write(frame)
+                batch_frames.pop(0)
+                batch_frames = [*batch_frames, *video.read(1)]
+                pbar.update()
+
+        reader = open_writer_for_read(writer)
+        writer.close()
+        return reader
+
+    @classmethod
+    def validate_schema(cls, config: dict):
+        cls.opt_schema().validate(config)
+
+    @abstractclassmethod
+    def apply(cls):
+        ''' Inner method used to apply the effect, called by run '''
+        raise NotImplementedError
+
+    @abstractclassmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        raise NotImplementedError
+
+    @abstractclassmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        raise NotImplementedError
+
+    @abstractclassmethod
+    def opt_schema(cls):
+        ''' Configuration options schema for arguments loaded from config.py '''
+        raise NotImplementedError
+
+class FrameDifference(Effect):
+    @classmethod
+    def apply(cls, frames: list):
+        ''' Applies a frame differencing effect to the passed frames '''
+        assert len(frames) > 1
+        return np.absolute(np.subtract(np.int16(frames[0]), np.int16(frames[-1])))
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Frame differencing options '''
+        return Schema({
+            'effect': cls.__name__,
+            'batch_size': Optional(And(int, partial(number_between, lower_bound=1.1, upper_bound=999)))
+        })
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        return 2
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        return 'Frame differencing'
+
+def increasing(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
+    ''' Applies a frame differencing effect to the passed frames. but only for pixels that increased in rgb value '''
+    new_frame = np.subtract(frames[1], frames[0])
+    new_frame[new_frame > 0] = 0
+    new_frame = np.absolute(new_frame)
     writer.write([new_frame])
     update()
+
+def decreasing(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
+    ''' Applies a frame differencing effect to the passed frames, but only for pixels that decreased in rgb values '''
+    new_frame = np.subtract(frames[1], frames[0])
+    new_frame[new_frame < 0] = 0
+    writer.write([new_frame])
+    update()
+
+def pixel_range(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
+    ''' Removes all pixels above the upper bound and below the lower bound '''
+    upper_bound = config['upper_bound']
+    lower_bound = config['lower_bound']
+    mean = np.mean(frames[0], axis=(2))
+    grayscale = np.repeat(mean[:, :, np.newaxis], 3, axis=2)
+    frames[0][lower_bound > grayscale] = 0
+    frames[0][upper_bound < grayscale] = 0
+    writer.write([frames[0]])
+    update()
+
+def grayscale(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
+    ''' Makes the image grayscale according to the configured strength '''
+    strength = config['strength']
+    means = np.mean(frames[0], axis=(2))
+    means = np.repeat(means[:, :, np.newaxis], 3, axis=2)
+    frames[0] = frames[0] + (((frames[0] - means) * -1) * strength)
+    writer.write([frames[0]])
+    update()
+
+def overlay(frames_1: list, frames_2: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
+    ''' Takes two videos and overlays one ontop of the other '''
+    if 'strength' in config:
+        strength = config['strength']
+    else:
+        strength = 0.5
+    new_frame = (frames_1[0] * (1 - strength)) + (frames_2[0] * strength)
+    writer.write([new_frame])
+    update()
+
+def bilateral_filter(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
+    ''' grayscales the image '''
+    frames[0] = cv2.fastNlMeansDenoisingColored(frames[0], None, 10, 10, 7, 21)
+    writer.write([frames[0]])
+    update()
+
+def std_deviation_filter(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
+    ''' Removes all pixels above or below the passed number of standard deviations (of pixel values) '''
+    # shit doesnt work
+    std_deviation = np.std(frames[0])
+    mean = np.mean(frames[0])
+    percentile = 0.01
+
+    bound = mean + (std_deviation * percentile)
+    frames[0][(255 // 2) - bound > frames[0]] = 0
+    frames[0][(255 // 2) + bound < frames[0]] = 0
+    writer.write([frames[0]])
+    update()
+class ItsFuckedError(Exception):
+    pass # :) just commit your broken code its fiiiine
 
 def median_bound_pass(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
     ''' Zero's out all pixels below the median '''
@@ -39,49 +184,10 @@ def denoise(frames: list, config: dict, writer: VideoWriter, update=lambda x: No
     writer.write([new_frame])
     update()
 
-def increasing(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Applies a frame differencing effect to the passed frames. but only for pixels that increased in rgb value '''
-    new_frame = np.subtract(frames[1], frames[0])
-    new_frame[new_frame > 0] = 0
-    new_frame = np.absolute(new_frame)
-    writer.write([new_frame])
-    update()
-
-def decreasing(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Applies a frame differencing effect to the passed frames, but only for pixels that decreased in rgb values '''
-    new_frame = np.subtract(frames[1], frames[0])
-    new_frame[new_frame < 0] = 0
-    writer.write([new_frame])
-    update()
-
 def edge(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
     ''' Applies an edge detection algorithm to the video, not working atm '''
     raise ItsFuckedError
     writer.write([cv2.Canny(frames[0], 100, 200)])
-    update()
-
-def pixel_range(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Removes all pixels above the upper bound and below the lower bound '''
-    upper_bound = config['upper_bound']
-    lower_bound = config['lower_bound']
-    mean = np.mean(frames[0], axis=(2))
-    grayscale = np.repeat(mean[:, :, np.newaxis], 3, axis=2)
-    frames[0][lower_bound > grayscale] = 0
-    frames[0][upper_bound < grayscale] = 0
-    writer.write([frames[0]])
-    update()
-
-def std_deviation_filter(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Removes all pixels above or below the passed number of standard deviations (of pixel values) '''
-    # shit doesnt work
-    std_deviation = np.std(frames[0])
-    mean = np.mean(frames[0])
-    percentile = 0.01
-
-    bound = mean + (std_deviation * percentile)
-    frames[0][(255 // 2) - bound > frames[0]] = 0
-    frames[0][(255 // 2) + bound < frames[0]] = 0
-    writer.write([frames[0]])
     update()
 
 def saturation(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
@@ -93,20 +199,6 @@ def saturation(frames: list, config: dict, writer: VideoWriter, update=lambda x:
     writer.write([frames[0] * strength])
     update()
 
-def grayscale(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Makes the image grayscale according to the configured strength '''
-    strength = config['strength']
-    means = np.mean(frames[0], axis=(2))
-    means = np.repeat(means[:, :, np.newaxis], 3, axis=2)
-    frames[0] = frames[0] + (((frames[0] - means) * -1) * strength)
-    writer.write([frames[0]])
-    update()
-
-def bilateral_filter(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' grayscales the image '''
-    frames[0] = cv2.fastNlMeansDenoisingColored(frames[0], None, 10, 10, 7, 21)
-    writer.write([frames[0]])
-    update()
 
 def light_grayscale_detector(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
     ''' Increases and decreases the grayscale based on the mean amount of light in the frame '''
@@ -118,22 +210,7 @@ def light_grayscale_detector(frames: list, config: dict, writer: VideoWriter, up
     writer.write([new_frame])
     update()
 
-def overlay(frames_1: list, frames_2: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Takes two videos and overlays one ontop of the other '''
-    if 'strength' in config:
-        strength = config['strength']
-    else:
-        strength = 0.5
-    new_frame = (frames_1[0] * (1 - strength)) + (frames_2[0] * strength)
-    writer.write([new_frame])
-    update()
-
 effects = {
-    'frame_difference': {
-        'batch_size': 2,
-        'progress_name': 'Frame differencing',
-        'function': frame_difference
-    },
     'pixel_range': {
         'batch_size': 1,
         'progress_name': 'Pixel range filter',
@@ -276,7 +353,6 @@ def apply(video: VideoReader, effect_name: str, effect_config: dict):
         return reader
 
     effect_methods = {
-        'frame_difference': batch_apply,
         'pixel_range': batch_apply,
         'std_deviation_filter': batch_apply,
         'grayscale': batch_apply,
