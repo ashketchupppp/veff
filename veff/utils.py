@@ -7,6 +7,9 @@ import uuid
 import os
 import shutil
 
+import platform
+import numpy as np
+
 temp_location = '.' + os.path.sep + 'temp'
 
 def get_temp_file(extension=''):
