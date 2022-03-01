@@ -1,12 +1,11 @@
 ''' Utilities '''
-
-import tempfile
-import platform
-import numpy as np
-import uuid
 import os
+import uuid
 import shutil
 import subprocess
+
+import platform
+import numpy as np
 
 temp_location = '.' + os.path.sep + 'temp'
 
