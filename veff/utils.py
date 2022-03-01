@@ -1,6 +1,4 @@
 ''' Utilities '''
-
-import tempfile
 import platform
 import numpy as np
 import uuid

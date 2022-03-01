@@ -37,7 +37,7 @@ def number_between(num, lower_bound, upper_bound):
     return lower_bound <= num <= upper_bound
 
 configSchema = Schema({
-    'filepath': And(str, partial(is_filetype, _type='mp4'), is_file),
+    'filepath': And(str, partial(is_filetype, _type='mp4'), is_file, error='Filepath must be a valid mp4 file'),
     'outputFilePath': And(str),
     'effects': [Or(
         {
