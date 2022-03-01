@@ -1,6 +1,6 @@
 # veff
 
-Python video processing pipeline.
+A Python video processing pipeline.
 
 Took inspiration from Webpack
 
@@ -19,7 +19,7 @@ Now install the dependencies by running
 ```
 pip install -r requirements.txt
 ```
-
+***
 ## Running veff
 
 To run `veff` execute the following
@@ -28,8 +28,14 @@ python veff
 ```
 
 To configure `veff` navigate to `veff/config.py` and change the configuration how you wish.
-For more information on what effects are avaialable, look in `veff/config_schema.py`.
-
+For more information on what effects are available, look in `veff/config_schema.py`.
+***
 ## Contributing
 
 TODO: add tests for code, see [here](https://github.com/ashketchupppp/veff/issues/3)
+
+## Show your support
+
+Give a ⭐️ if this project helped you!
+
+***
