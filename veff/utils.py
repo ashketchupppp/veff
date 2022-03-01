@@ -6,7 +6,6 @@ import numpy as np
 import uuid
 import os
 import shutil
-import subprocess
 
 temp_location = '.' + os.path.sep + 'temp'
 
@@ -61,29 +60,3 @@ def is_filetype(p: str, _type: str):
 def number_between(num, lower_bound, upper_bound):
     ''' Returns true if num is between lower_bound and upper_bound '''
     return lower_bound <= num <= upper_bound
-
-class LimitedList:
-    def __init__(self, size_limit):
-        self.values = []
-        self.size_limit = size_limit
-
-    def append(self, value):
-        if len(self.values) == self.size_limit:
-            self.values.pop(0)
-        self.values.append(value)
-
-    def most_recent(self):
-        if len(self.values) > 0:
-            return self.values[-1]
-
-    def set_size_limit(self, new_limit: int):
-        self.size_limit = new_limit
-
-    def __iter__(self):
-        for value in self.values:
-            yield value
-
-def ffmpeg(path_in, path_out):
-    subprocess.run([
-        'ffmpeg', '-i', path_in, path_out
-    ], cwd=os.getcwd())

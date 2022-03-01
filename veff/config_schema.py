@@ -1,13 +1,11 @@
 ''' Config file schema '''
 
-from os import path
 from functools import partial
-from schema import Schema, And, Or, Optional
+from schema import Schema, And, Or
 
 from utils import (
     is_file,
-    is_filetype,
-    number_between
+    is_filetype
 )
 from effects import (
     Overlay,

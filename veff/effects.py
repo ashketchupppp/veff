@@ -9,7 +9,7 @@ from functools import partial
 
 from utils import number_between
 from video import VideoWriter
-from utils import diff_arrays, get_temp_file
+from utils import get_temp_file
 from video import VideoReader, VideoWriter, open_writer_for_read
 import log
 
@@ -399,52 +399,3 @@ def light_grayscale_detector(frames: list, config: dict, writer: VideoWriter, up
     new_frame[new_frame > 64] = new_frame + increase
     writer.write([new_frame])
     update()
-
-def apply(video: VideoReader, effect_name: str, effect_config: dict):
-    ''' Root method for applying an effect '''
-
-    def multi_input_batch_apply(video: VideoReader, effect_name: str, effect_config: dict):
-        ''' Reads the passed video in batches, applies the effect and
-            returns a VideoReader for the effected video
-        '''
-        # need to allow an arbitrary number of videos to be passed to the effect rather than 2
-        # need a way to upscale or downscale videos that are combined together so you can combine different resolutions
-
-        # got a syncing issue where if you apply a frame diff and then overlay the diff with the original,
-        # the frames get out of sync so the diff ends up being far ahead of the original
-
-        if 'batch_size' in effect_config:
-            batch_size = effect_config['batch_size']
-        elif 'batch_size' in effects[effect_name]:
-            batch_size = effects[effect_name]['batch_size']
-        else:
-            raise Exception('batch_size not set')
-        video_2 = VideoReader(
-            effect_config['second_video']
-        )
-        pbar = log.progress_bar(min(video.frame_count, video_2.frame_count), effects[effect_name]['progress_name'], 'frames')
-
-        writer = VideoWriter(
-            get_temp_file(extension='mp4'),
-            width=video.width,
-            height=video.height,
-            fps=video.fps,
-            fourcc=video.fourcc
-        )
-
-        batch_frames_v1 = video.read(batch_size)
-        batch_frames_v2 = video_2.read(batch_size)
-
-        while video.frames_read < video.frame_count and video_2.frames_read < video_2.frame_count:
-            if len(batch_frames_v1) > 0 and len(batch_frames_v2) > 0:
-                effects[effect_name]['function'](batch_frames_v1, batch_frames_v2, effect_config, writer, pbar.update)
-                batch_frames_v1.pop(0)
-                batch_frames_v1 = [*batch_frames_v1, *video.read(1)]
-                batch_frames_v2.pop(0)
-                batch_frames_v2 = [*batch_frames_v2, *video_2.read(1)]
-
-        reader = open_writer_for_read(writer)
-        writer.close()
-        return reader
-
-    return effect_methods[effect_name](video, effect_name, effect_config)

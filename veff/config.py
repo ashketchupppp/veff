@@ -1,4 +1,4 @@
-from os import path, sep
+from os import sep
 
 # This is just an example configuration
 # Edit this and create your own
