@@ -1,25 +1,360 @@
 ''' Video effects '''
 
-from uuid import SafeUUID
 from scipy import signal
 import numpy as np
 import cv2
-import matplotlib as mpl
+from abc import ABC, abstractclassmethod
+from schema import Schema, And, Optional
+from functools import partial
 
+from utils import number_between
 from video import VideoWriter
-from utils import diff_arrays, get_temp_file
+from utils import get_temp_file
 from video import VideoReader, VideoWriter, open_writer_for_read
 import log
 
 # Could do some edge detection and then do something with the pixels at the edges???
 
+class Effect(ABC):
+    @abstractclassmethod
+    def run(cls, video: VideoReader, effect_config: dict):
+        ''' Root run method '''
+        raise NotImplementedError
+
+class SingleInputEffect(Effect):
+    @classmethod
+    def run(cls, video: VideoReader, effect_config: dict):
+        ''' Reads the passed video in batches, applies the effect and
+            returns a VideoReader for the effected video
+        '''
+        cls.validate_schema(effect_config)
+        
+        pbar = log.progress_bar(video.frame_count, cls.progress_name(), 'frames')
+
+        if 'batch_size' in effect_config:
+            batch_size = effect_config['batch_size']
+        else:
+            batch_size = cls.batch_size()
+
+        # remove thsese so they don't get passed to apply
+        if 'batch_size' in effect_config:
+            del effect_config['batch_size']
+        del effect_config['effect']
+
+
+        writer = VideoWriter(
+            get_temp_file(extension='mp4'),
+            width=video.width,
+            height=video.height,
+            fps=video.fps,
+            fourcc=video.fourcc
+        )
+
+        batch_frames = video.read(batch_size)
+
+        while video.frames_read < video.frame_count:
+            if len(batch_frames) > 0:
+                frame = cls.apply(batch_frames, **effect_config)
+                writer.write(frame)
+                batch_frames.pop(0)
+                batch_frames = [*batch_frames, *video.read(1)]
+                pbar.update()
+
+        reader = open_writer_for_read(writer)
+        writer.close()
+        return reader
+
+    @classmethod
+    def validate_schema(cls, config: dict):
+        cls.opt_schema().validate(config)
+
+    @classmethod
+    def apply(cls):
+        ''' Inner method used to apply the effect, called by run '''
+        raise NotImplementedError
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        raise NotImplementedError
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        raise NotImplementedError
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Configuration options schema for arguments loaded from config.py '''
+        raise NotImplementedError
+
+class FrameDifference(SingleInputEffect):
+    @classmethod
+    def apply(cls, frames: list):
+        ''' Applies a frame differencing effect to the passed frames '''
+        assert len(frames) > 1
+        return np.absolute(np.subtract(np.int16(frames[0]), np.int16(frames[-1])))
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Frame differencing options '''
+        return Schema({
+            'effect': cls.__name__,
+            'batch_size': Optional(And(int, partial(number_between, lower_bound=1.1, upper_bound=999)))
+        })
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        return 2
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        return 'Frame differencing'
+
+class IncreasingFrameDifference(SingleInputEffect):
+    @classmethod
+    def apply(cls, frames: list):
+        ''' Applies a frame differencing effect to the passed frames '''
+        assert len(frames) > 1
+        new_frame = np.subtract(frames[1], frames[0])
+        new_frame[new_frame > 0] = 0
+        new_frame = np.absolute(new_frame)
+        return new_frame
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Increasing frame differencing options '''
+        return Schema({
+            'effect': cls.__name__,
+            'batch_size': Optional(And(int, partial(number_between, lower_bound=1.1, upper_bound=999)))
+        })
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        return 2
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        return 'Increasing frame differencing'
+
+class DecreasingFrameDifference(SingleInputEffect):
+    @classmethod
+    def apply(cls, frames: list):
+        ''' Applies a frame differencing effect to the passed frames '''
+        assert len(frames) > 1
+        new_frame = np.subtract(frames[1], frames[0])
+        new_frame[new_frame < 0] = 0
+        return new_frame
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Decreasing frame differencing options '''
+        return Schema({
+            'effect': cls.__name__,
+            'batch_size': Optional(And(int, partial(number_between, lower_bound=1.1, upper_bound=999)))
+        })
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        return 2
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        return 'Decreasing frame differencing'
+
+class PixelRange(SingleInputEffect):
+    @classmethod
+    def apply(cls, frames: list, lower_bound=0, upper_bound=255):
+        ''' Applies a frame differencing effect to the passed frames '''
+        assert len(frames) == 1
+        mean = np.mean(frames[0], axis=(2))
+        grayscale = np.repeat(mean[:, :, np.newaxis], 3, axis=2)
+        if lower_bound > 0:
+            frames[0][lower_bound > grayscale] = 0
+        if upper_bound < 255:
+            frames[0][upper_bound < grayscale] = 0
+        return frames[0]
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Decreasing frame differencing options '''
+        return Schema({
+            'effect': cls.__name__,
+            'upper_bound': Optional(int),
+            'lower_bound': Optional(int)
+        })
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        return 1
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        return 'Pixel range filtering'
+
+class Grayscale(SingleInputEffect):
+    @classmethod
+    def apply(cls, frames: list, strength=1):
+        ''' Makes the image grayscale according to the configured strength '''
+        assert len(frames) == 1
+        means = np.mean(frames[0], axis=(2))
+        means = np.repeat(means[:, :, np.newaxis], 3, axis=2)
+        frames[0] = frames[0] + (((frames[0] - means) * -1) * strength)
+        return frames[0]
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Decreasing frame differencing options '''
+        return Schema({
+            'effect': cls.__name__,
+            'strength': Optional(int)
+        })
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        return 1
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        return 'Grayscaling'
+
+class MultiInputEffect(Effect):
+    @classmethod
+    def run(cls, video: VideoReader, effect_config: dict):
+        ''' Reads the passed video in batches, applies the effect and
+            returns a VideoReader for the effected video
+        '''
+        cls.validate_schema(effect_config)
+        
+        pbar = log.progress_bar(video.frame_count, cls.progress_name(), 'frames')
+
+        if 'batch_size' in effect_config:
+            batch_size = effect_config['batch_size']
+        else:
+            batch_size = cls.batch_size()
+        del effect_config['effect']
+
+        videos = [VideoReader(path) for path in effect_config['videos']]
+        del effect_config['videos']
+
+        pbar = log.progress_bar(min(*[len(video) for video in videos]), cls.progress_name(), 'frames')
+
+        writer = VideoWriter(
+            get_temp_file(extension='mp4'),
+            width=video.width,
+            height=video.height,
+            fps=video.fps,
+            fourcc=video.fourcc
+        )
+
+        batch_frames = [video.read(batch_size) for video in videos]
+
+        while all([video.frames_read < video.frame_count for video in videos]):
+            if all([len(batch) for batch in batch_frames]):
+                new_frame = cls.apply(batch_frames, **effect_config)
+                writer.write(new_frame)
+                for i in range(len(batch_frames)):
+                    batch_frames[i].pop(0)
+                    batch_frames[i] = [*batch_frames[i], *videos[i].read(1)]
+                pbar.update()
+
+        reader = open_writer_for_read(writer)
+        writer.close()
+        return reader
+    
+    @classmethod
+    def validate_schema(cls, config: dict):
+        cls.opt_schema().validate(config)
+
+    @classmethod
+    def apply(cls, frames: list, *args, **kwargs):
+        ''' Inner method used to apply the effect, called by run '''
+        raise NotImplementedError
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        raise NotImplementedError
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        raise NotImplementedError
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Configuration options schema for arguments loaded from config.py '''
+        raise NotImplementedError
+
+class Overlay(MultiInputEffect):
+    @classmethod
+    def apply(cls, batches: list):
+        strength = 1 / len(batches)
+        def overlay(current_frame, i = 0):
+            if i < len(batches):
+                return overlay(current_frame * strength + batches[i][0] * (1 - strength), i + 1)
+            return current_frame
+        return overlay(batches[0][0])
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        return 1
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        return 'Overlaying'
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Configuration options schema for arguments loaded from config.py '''
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Decreasing frame differencing options '''
+        return Schema({
+            'effect': cls.__name__,
+            'videos': And(list, lambda l: all([isinstance(path, str) for path in l]))
+        })
+
+effects = {
+    **dict([(cls.__name__, cls) for cls in SingleInputEffect.__subclasses__()]),
+    **dict([(cls.__name__, cls) for cls in MultiInputEffect.__subclasses__()])
+}
+
+# maybe you can get these effects below to be good
 class ItsFuckedError(Exception):
     pass # :) just commit your broken code its fiiiine
 
-def frame_difference(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Applies a frame differencing effect to the passed frames '''
-    new_frame = diff_arrays(frames[0], frames[-1])
-    writer.write([new_frame])
+def std_deviation_filter(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
+    ''' Removes all pixels above or below the passed number of standard deviations (of pixel values) '''
+    raise ItsFuckedError # this works but its crap
+    std_deviation = np.std(frames[0])
+    mean = np.mean(frames[0])
+    percentile = 0.01
+
+    bound = mean + (std_deviation * percentile)
+    frames[0][(255 // 2) - bound > frames[0]] = 0
+    frames[0][(255 // 2) + bound < frames[0]] = 0
+    writer.write([frames[0]])
+    update()
+
+def bilateral_filter(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
+    ''' grayscales the image '''
+    raise ItsFuckedError # this is obscenely slow
+    frames[0] = cv2.fastNlMeansDenoisingColored(frames[0], None, 10, 10, 7, 21)
+    writer.write([frames[0]])
     update()
 
 def median_bound_pass(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
@@ -39,49 +374,10 @@ def denoise(frames: list, config: dict, writer: VideoWriter, update=lambda x: No
     writer.write([new_frame])
     update()
 
-def increasing(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Applies a frame differencing effect to the passed frames. but only for pixels that increased in rgb value '''
-    new_frame = np.subtract(frames[1], frames[0])
-    new_frame[new_frame > 0] = 0
-    new_frame = np.absolute(new_frame)
-    writer.write([new_frame])
-    update()
-
-def decreasing(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Applies a frame differencing effect to the passed frames, but only for pixels that decreased in rgb values '''
-    new_frame = np.subtract(frames[1], frames[0])
-    new_frame[new_frame < 0] = 0
-    writer.write([new_frame])
-    update()
-
 def edge(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
     ''' Applies an edge detection algorithm to the video, not working atm '''
     raise ItsFuckedError
     writer.write([cv2.Canny(frames[0], 100, 200)])
-    update()
-
-def pixel_range(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Removes all pixels above the upper bound and below the lower bound '''
-    upper_bound = config['upper_bound']
-    lower_bound = config['lower_bound']
-    mean = np.mean(frames[0], axis=(2))
-    grayscale = np.repeat(mean[:, :, np.newaxis], 3, axis=2)
-    frames[0][lower_bound > grayscale] = 0
-    frames[0][upper_bound < grayscale] = 0
-    writer.write([frames[0]])
-    update()
-
-def std_deviation_filter(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Removes all pixels above or below the passed number of standard deviations (of pixel values) '''
-    # shit doesnt work
-    std_deviation = np.std(frames[0])
-    mean = np.mean(frames[0])
-    percentile = 0.01
-
-    bound = mean + (std_deviation * percentile)
-    frames[0][(255 // 2) - bound > frames[0]] = 0
-    frames[0][(255 // 2) + bound < frames[0]] = 0
-    writer.write([frames[0]])
     update()
 
 def saturation(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
@@ -93,20 +389,6 @@ def saturation(frames: list, config: dict, writer: VideoWriter, update=lambda x:
     writer.write([frames[0] * strength])
     update()
 
-def grayscale(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Makes the image grayscale according to the configured strength '''
-    strength = config['strength']
-    means = np.mean(frames[0], axis=(2))
-    means = np.repeat(means[:, :, np.newaxis], 3, axis=2)
-    frames[0] = frames[0] + (((frames[0] - means) * -1) * strength)
-    writer.write([frames[0]])
-    update()
-
-def bilateral_filter(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' grayscales the image '''
-    frames[0] = cv2.fastNlMeansDenoisingColored(frames[0], None, 10, 10, 7, 21)
-    writer.write([frames[0]])
-    update()
 
 def light_grayscale_detector(frames: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
     ''' Increases and decreases the grayscale based on the mean amount of light in the frame '''
@@ -117,178 +399,3 @@ def light_grayscale_detector(frames: list, config: dict, writer: VideoWriter, up
     new_frame[new_frame > 64] = new_frame + increase
     writer.write([new_frame])
     update()
-
-def overlay(frames_1: list, frames_2: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Takes two videos and overlays one ontop of the other '''
-    if 'strength' in config:
-        strength = config['strength']
-    else:
-        strength = 0.5
-    new_frame = (frames_1[0] * (1 - strength)) + (frames_2[0] * strength)
-    writer.write([new_frame])
-    update()
-
-effects = {
-    'frame_difference': {
-        'batch_size': 2,
-        'progress_name': 'Frame differencing',
-        'function': frame_difference
-    },
-    'pixel_range': {
-        'batch_size': 1,
-        'progress_name': 'Pixel range filter',
-        'function': pixel_range
-    },
-    'std_deviation_filter': {
-        'batch_size': 1,
-        'progress_name': 'Standard deviation filter',
-        'function': std_deviation_filter
-    },
-    'grayscale': {
-        'batch_size': 1,
-        'progress_name': 'Grayscaling',
-        'function': grayscale
-    },
-    'bilateral_filter': {
-        'batch_size': 1,
-        'progress_name': 'Bilateral filtering',
-        'function': bilateral_filter
-    },
-    'increasing': {
-        'batch_size': 2,
-        'progress_name': 'Increasing filter',
-        'function': increasing
-    },
-    'decreasing': {
-        'batch_size': 2,
-        'progress_name': 'Decreasing filter',
-        'function': decreasing
-    },
-    'edge': {
-        'batch_size': 1,
-        'progress_name': 'Edge detecting',
-        'function': edge
-    },
-    'light_grayscale_detector': {
-        'batch_size': 2,
-        'progress_name': 'Light grayscale detection',
-        'function': light_grayscale_detector
-    },
-    'denoise': {
-        'batch_size': 1,
-        'progress_name': 'Denoising',
-        'function': denoise
-    },
-    'overlay': {
-        'batch_size': 1,
-        'progress_name': 'Overlaying',
-        'function': overlay
-    },
-    'saturation': {
-        'batch_size': 1,
-        'progress_name': 'Increasing saturation',
-        'function': saturation
-    },
-    'median_bound_pass': {
-        'batch_size': 1,
-        'progress_name': 'Median pass',
-        'function': median_bound_pass
-    }
-}
-
-def apply(video: VideoReader, effect_name: str, effect_config: dict):
-    ''' Root method for applying an effect '''
-
-    def batch_apply(video: VideoReader, effect_name: str, effect_config: dict):
-        ''' Reads the passed video in batches, applies the effect and
-            returns a VideoReader for the effected video
-        '''
-        pbar = log.progress_bar(video.frame_count, effects[effect_name]['progress_name'], 'frames')
-
-        if 'batch_size' in effect_config:
-            batch_size = effect_config['batch_size']
-        elif 'batch_size' in effects[effect_name]:
-            batch_size = effects[effect_name]['batch_size']
-        else:
-            raise Exception('batch_size not set')
-        writer = VideoWriter(
-            get_temp_file(extension='mp4'),
-            width=video.width,
-            height=video.height,
-            fps=video.fps,
-            fourcc=video.fourcc
-        )
-
-        batch_frames = video.read(batch_size)
-
-        while video.frames_read < video.frame_count:
-            if len(batch_frames) > 0:
-                effects[effect_name]['function'](batch_frames, effect_config, writer, pbar.update)
-                batch_frames.pop(0)
-                batch_frames = [*batch_frames, *video.read(1)]
-
-        reader = open_writer_for_read(writer)
-        writer.close()
-        return reader
-
-    def multi_input_batch_apply(video: VideoReader, effect_name: str, effect_config: dict):
-        ''' Reads the passed video in batches, applies the effect and
-            returns a VideoReader for the effected video
-        '''
-        # need to allow an arbitrary number of videos to be passed to the effect rather than 2
-        # need a way to upscale or downscale videos that are combined together so you can combine different resolutions
-
-        # got a syncing issue where if you apply a frame diff and then overlay the diff with the original,
-        # the frames get out of sync so the diff ends up being far ahead of the original
-
-        if 'batch_size' in effect_config:
-            batch_size = effect_config['batch_size']
-        elif 'batch_size' in effects[effect_name]:
-            batch_size = effects[effect_name]['batch_size']
-        else:
-            raise Exception('batch_size not set')
-        video_2 = VideoReader(
-            effect_config['second_video']
-        )
-        pbar = log.progress_bar(min(video.frame_count, video_2.frame_count), effects[effect_name]['progress_name'], 'frames')
-
-        writer = VideoWriter(
-            get_temp_file(extension='mp4'),
-            width=video.width,
-            height=video.height,
-            fps=video.fps,
-            fourcc=video.fourcc
-        )
-
-        batch_frames_v1 = video.read(batch_size)
-        batch_frames_v2 = video_2.read(batch_size)
-
-        while video.frames_read < video.frame_count and video_2.frames_read < video_2.frame_count:
-            if len(batch_frames_v1) > 0 and len(batch_frames_v2) > 0:
-                effects[effect_name]['function'](batch_frames_v1, batch_frames_v2, effect_config, writer, pbar.update)
-                batch_frames_v1.pop(0)
-                batch_frames_v1 = [*batch_frames_v1, *video.read(1)]
-                batch_frames_v2.pop(0)
-                batch_frames_v2 = [*batch_frames_v2, *video_2.read(1)]
-
-        reader = open_writer_for_read(writer)
-        writer.close()
-        return reader
-
-    effect_methods = {
-        'frame_difference': batch_apply,
-        'pixel_range': batch_apply,
-        'std_deviation_filter': batch_apply,
-        'grayscale': batch_apply,
-        'bilateral_filter': batch_apply,
-        'increasing': batch_apply,
-        'decreasing': batch_apply,
-        'edge': batch_apply,
-        'light_grayscale_detector': batch_apply,
-        'denoise': batch_apply,
-        'saturation': batch_apply,
-        'overlay': multi_input_batch_apply,
-        'median_bound_pass': batch_apply
-    }
-
-    return effect_methods[effect_name](video, effect_name, effect_config)

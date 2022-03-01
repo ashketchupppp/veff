@@ -6,6 +6,7 @@ from os import sep
 INPUT_FILE_NAME = 'test_video.mp4'
 
 INPUT_FILE_ROOT = 'videos/originals'
+INPUT_FILE_PATH = INPUT_FILE_ROOT + sep + INPUT_FILE_NAME
 OUTPUT_FILE_ROOT = f'videos/{INPUT_FILE_NAME.split(".")[0]}'
 OUTPUT_FILE_NAME = INPUT_FILE_NAME
 OUTPUT_FILE_EXT = 'mp4'
@@ -17,15 +18,14 @@ OUTPUT_FILE_EXT = 'mp4'
 # before being used as an input for another video
 
 CONFIG = {
-    "filepath": f"{INPUT_FILE_ROOT}{sep}{INPUT_FILE_NAME}",
-    "effects": [
+    'filepath': f'{INPUT_FILE_ROOT}{sep}{INPUT_FILE_NAME}',
+    'effects': [
         {
-            "effect": 'frame_difference',
-            'batch_size': 2
-        },
-        {
-            'effect': 'median_bound_pass',
-            'multiplier': 1.5
+            'effect': 'Overlay',
+            'videos': [
+                INPUT_FILE_PATH,
+                INPUT_FILE_ROOT + sep + 'living_beings.mp4'
+            ]
         }
     ]
 }

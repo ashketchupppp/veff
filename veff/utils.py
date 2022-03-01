@@ -1,8 +1,11 @@
 ''' Utilities '''
-import os
+
+from os import path
+import platform
+import numpy as np
 import uuid
+import os
 import shutil
-import subprocess
 
 import platform
 import numpy as np
@@ -45,28 +48,18 @@ def diff_arrays(arr1, arr2):
     ''' Returns the difference between two numpy arrays '''
     return np.absolute(np.subtract(np.int16(arr1), np.int16(arr2)))
 
-class LimitedList:
-    def __init__(self, size_limit):
-        self.values = []
-        self.size_limit = size_limit
+def is_path(p: str):
+    ''' Returns true if p is a valid path '''
+    return path.exists(p)
 
-    def append(self, value):
-        if len(self.values) == self.size_limit:
-            self.values.pop(0)
-        self.values.append(value)
+def is_file(p: str):
+  ''' Returns True if p is an existing file '''
+  return path.isfile(p)
 
-    def most_recent(self):
-        if len(self.values) > 0:
-            return self.values[-1]
+def is_filetype(p: str, _type: str):
+    ''' Returns true if p is a valid path, is a file and has the passed filetype '''
+    return p.endswith(f'.{_type}')
 
-    def set_size_limit(self, new_limit: int):
-        self.size_limit = new_limit
-
-    def __iter__(self):
-        for value in self.values:
-            yield value
-
-def ffmpeg(path_in, path_out):
-    subprocess.run([
-        'ffmpeg', '-i', path_in, path_out
-    ], cwd=os.getcwd())
+def number_between(num, lower_bound, upper_bound):
+    ''' Returns true if num is between lower_bound and upper_bound '''
+    return lower_bound <= num <= upper_bound

@@ -1,6 +1,6 @@
-import os
-
 import cv2
+import os
+from moviepy.editor import *
 import numpy as np
 
 class VideoFileHandler:
@@ -82,6 +82,9 @@ class VideoReader(VideoFileHandler):
         else:
             raise StopIteration
 
+    def __len__(self):
+        return self.frame_count
+
 class VideoWriter(VideoFileHandler):
     def __init__(self, path, width=1280, height=720, fps=30, fourcc=cv2.VideoWriter_fourcc(*'mp4v')):
         super().__init__()
@@ -103,6 +106,8 @@ class VideoWriter(VideoFileHandler):
 
     def write(self, frames):
         ''' Writes the passed frames '''
+        if not isinstance(frames, list):
+            frames = [frames]
         if len(frames) == 0:
             raise ValueError('Cannot write 0 frames to file')
         for i in range(len(frames)):

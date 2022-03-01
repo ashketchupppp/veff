@@ -10,7 +10,7 @@ import cv2
 from utils import temp_file_cleanup
 from video import VideoReader
 from config_schema import validate_config
-from effects import apply
+import effects
 import log
 
 from config import CONFIG
@@ -38,7 +38,7 @@ video = VideoReader(INPUT_PATH)
 try:
     for effectConfig in CONFIGURED_EFFECTS:
         currentEffect = effectConfig['effect']
-        video = apply(video, currentEffect, effectConfig)
+        video = effects.effects[currentEffect].run(video, effectConfig)
 
 except Exception as err:
     log.err(f'Unexpected error occurred: {err}')
