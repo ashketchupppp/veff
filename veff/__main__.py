@@ -12,7 +12,7 @@ import cv2
 from utils import temp_file_cleanup, ffmpeg
 from video import VideoReader
 from config_schema import validate_config
-from effects import apply, FrameDifference
+import effects
 import log
 
 from config import CONFIG
@@ -40,10 +40,7 @@ video = VideoReader(INPUT_PATH)
 try:
     for effectConfig in CONFIGURED_EFFECTS:
         currentEffect = effectConfig['effect']
-        if currentEffect == 'FrameDifference':
-            video = FrameDifference.run(video, currentEffect, effectConfig)
-        else:
-            video = apply(video, currentEffect, effectConfig)
+        video = effects.effects[currentEffect].run(video, currentEffect, effectConfig)
 
 except Exception as err:
     log.err(f'Unexpected error occurred: {err}')

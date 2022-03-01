@@ -20,8 +20,8 @@ CONFIG = {
     "filepath": f"{INPUT_FILE_ROOT}{sep}{INPUT_FILE_NAME}",
     "effects": [
         {
-            "effect": 'FrameDifference',
-            'batch_size': 2
+            "effect": 'Grayscale',
+            'strength': 1
         }
     ]
 }
