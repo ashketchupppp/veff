@@ -10,6 +10,7 @@ from utils import (
     number_between
 )
 from effects import (
+    Overlay,
     FrameDifference,
     Grayscale,
     IncreasingFrameDifference,
@@ -25,7 +26,8 @@ configSchema = Schema({
         Grayscale.opt_schema(),
         IncreasingFrameDifference.opt_schema(),
         DecreasingFrameDifference.opt_schema(),
-        PixelRange.opt_schema()
+        PixelRange.opt_schema(),
+        Overlay.opt_schema()
     )]
 })
 

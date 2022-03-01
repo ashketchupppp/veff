@@ -88,6 +88,9 @@ class VideoReader(VideoFileHandler):
         else:
             raise StopIteration
 
+    def __len__(self):
+        return self.frame_count
+
 class VideoWriter(VideoFileHandler):
     def __init__(self, path, width=1280, height=720, fps=30, fourcc=cv2.VideoWriter_fourcc(*'mp4v')):
         super().__init__()

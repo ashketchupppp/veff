@@ -16,8 +16,14 @@ import log
 # Could do some edge detection and then do something with the pixels at the edges???
 
 class Effect(ABC):
+    @abstractclassmethod
+    def run(cls, video: VideoReader, effect_config: dict):
+        ''' Root run method '''
+        raise NotImplementedError
+
+class SingleInputEffect(Effect):
     @classmethod
-    def run(cls, video: VideoReader, effect_name: str, effect_config: dict):
+    def run(cls, video: VideoReader, effect_config: dict):
         ''' Reads the passed video in batches, applies the effect and
             returns a VideoReader for the effected video
         '''
@@ -62,27 +68,27 @@ class Effect(ABC):
     def validate_schema(cls, config: dict):
         cls.opt_schema().validate(config)
 
-    @abstractclassmethod
+    @classmethod
     def apply(cls):
         ''' Inner method used to apply the effect, called by run '''
         raise NotImplementedError
 
-    @abstractclassmethod
+    @classmethod
     def batch_size(cls):
         ''' Number of frames needed for the effect to run '''
         raise NotImplementedError
 
-    @abstractclassmethod
+    @classmethod
     def progress_name(cls):
         ''' The name used by the progress bar to tell the user what effect is running '''
         raise NotImplementedError
 
-    @abstractclassmethod
+    @classmethod
     def opt_schema(cls):
         ''' Configuration options schema for arguments loaded from config.py '''
         raise NotImplementedError
 
-class FrameDifference(Effect):
+class FrameDifference(SingleInputEffect):
     @classmethod
     def apply(cls, frames: list):
         ''' Applies a frame differencing effect to the passed frames '''
@@ -107,7 +113,7 @@ class FrameDifference(Effect):
         ''' The name used by the progress bar to tell the user what effect is running '''
         return 'Frame differencing'
 
-class IncreasingFrameDifference(Effect):
+class IncreasingFrameDifference(SingleInputEffect):
     @classmethod
     def apply(cls, frames: list):
         ''' Applies a frame differencing effect to the passed frames '''
@@ -135,7 +141,7 @@ class IncreasingFrameDifference(Effect):
         ''' The name used by the progress bar to tell the user what effect is running '''
         return 'Increasing frame differencing'
 
-class DecreasingFrameDifference(Effect):
+class DecreasingFrameDifference(SingleInputEffect):
     @classmethod
     def apply(cls, frames: list):
         ''' Applies a frame differencing effect to the passed frames '''
@@ -162,7 +168,7 @@ class DecreasingFrameDifference(Effect):
         ''' The name used by the progress bar to tell the user what effect is running '''
         return 'Decreasing frame differencing'
 
-class PixelRange(Effect):
+class PixelRange(SingleInputEffect):
     @classmethod
     def apply(cls, frames: list, lower_bound=0, upper_bound=255):
         ''' Applies a frame differencing effect to the passed frames '''
@@ -194,7 +200,7 @@ class PixelRange(Effect):
         ''' The name used by the progress bar to tell the user what effect is running '''
         return 'Pixel range filtering'
 
-class Grayscale(Effect):
+class Grayscale(SingleInputEffect):
     @classmethod
     def apply(cls, frames: list, strength=1):
         ''' Makes the image grayscale according to the configured strength '''
@@ -222,19 +228,110 @@ class Grayscale(Effect):
         ''' The name used by the progress bar to tell the user what effect is running '''
         return 'Grayscaling'
 
-effects = {
-    **dict([(subclass.__name__, subclass) for subclass in Effect.__subclasses__()])
-}
+class MultiInputEffect(Effect):
+    @classmethod
+    def run(cls, video: VideoReader, effect_config: dict):
+        ''' Reads the passed video in batches, applies the effect and
+            returns a VideoReader for the effected video
+        '''
+        cls.validate_schema(effect_config)
+        
+        pbar = log.progress_bar(video.frame_count, cls.progress_name(), 'frames')
 
-def overlay(frames_1: list, frames_2: list, config: dict, writer: VideoWriter, update=lambda x: None, *args, **kwargs):
-    ''' Takes two videos and overlays one ontop of the other '''
-    if 'strength' in config:
-        strength = config['strength']
-    else:
-        strength = 0.5
-    new_frame = (frames_1[0] * (1 - strength)) + (frames_2[0] * strength)
-    writer.write([new_frame])
-    update()
+        if 'batch_size' in effect_config:
+            batch_size = effect_config['batch_size']
+        else:
+            batch_size = cls.batch_size()
+        del effect_config['effect']
+
+        videos = [VideoReader(path) for path in effect_config['videos']]
+        del effect_config['videos']
+
+        pbar = log.progress_bar(min(*[len(video) for video in videos]), cls.progress_name(), 'frames')
+
+        writer = VideoWriter(
+            get_temp_file(extension='mp4'),
+            width=video.width,
+            height=video.height,
+            fps=video.fps,
+            fourcc=video.fourcc
+        )
+
+        batch_frames = [video.read(batch_size) for video in videos]
+
+        while all([video.frames_read < video.frame_count for video in videos]):
+            if all([len(batch) for batch in batch_frames]):
+                new_frame = cls.apply(batch_frames, **effect_config)
+                writer.write(new_frame)
+                for i in range(len(batch_frames)):
+                    batch_frames[i].pop(0)
+                    batch_frames[i] = [*batch_frames[i], *videos[i].read(1)]
+                pbar.update()
+
+        reader = open_writer_for_read(writer)
+        writer.close()
+        return reader
+    
+    @classmethod
+    def validate_schema(cls, config: dict):
+        cls.opt_schema().validate(config)
+
+    @classmethod
+    def apply(cls, frames: list, *args, **kwargs):
+        ''' Inner method used to apply the effect, called by run '''
+        raise NotImplementedError
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        raise NotImplementedError
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        raise NotImplementedError
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Configuration options schema for arguments loaded from config.py '''
+        raise NotImplementedError
+
+class Overlay(MultiInputEffect):
+    @classmethod
+    def apply(cls, batches: list):
+        strength = 1 / len(batches)
+        def overlay(current_frame, i = 0):
+            if i < len(batches):
+                return overlay(current_frame * strength + batches[i][0] * (1 - strength), i + 1)
+            return current_frame
+        return overlay(batches[0][0])
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        return 1
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        return 'Overlaying'
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Configuration options schema for arguments loaded from config.py '''
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Decreasing frame differencing options '''
+        return Schema({
+            'effect': cls.__name__,
+            'videos': And(list, lambda l: all([isinstance(path, str) for path in l]))
+        })
+
+effects = {
+    **dict([(cls.__name__, cls) for cls in SingleInputEffect.__subclasses__()]),
+    **dict([(cls.__name__, cls) for cls in MultiInputEffect.__subclasses__()])
+}
 
 # maybe you can get these effects below to be good
 class ItsFuckedError(Exception):
