@@ -238,7 +238,7 @@ class Filter2D(SingleInputEffect):
 
     @classmethod
     def opt_schema(cls):
-        ''' Decreasing frame differencing options '''
+        ''' Filter2D options '''
         return Schema({
             'effect': cls.__name__,
             'kernel': list
@@ -253,6 +253,42 @@ class Filter2D(SingleInputEffect):
     def progress_name(cls):
         ''' The name used by the progress bar to tell the user what effect is running '''
         return 'Applying Filter2D'
+
+class CannyEdge(SingleInputEffect):
+    @classmethod
+    def apply(cls, frames: list, lower_threshold: int, upper_threshold: int, aperture_size = 5, l2gradient = False):
+        ''' Canny edge detector '''
+        assert len(frames) == 1
+        frames[0] = cv2.Canny(
+            frames[0],
+            lower_threshold,
+            upper_threshold,
+            apertureSize=aperture_size, 
+            L2gradient=l2gradient
+        )
+        frames[0] = np.repeat(frames[0][:, :, np.newaxis], 3, axis=2)
+        return frames[0]
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Canny edge detector '''
+        return Schema({
+            'effect': cls.__name__,
+            'lower_threshold': int,
+            'upper_threshold': int,
+            Optional('aperture_size'): Optional(int),
+            Optional('l2gradient'): Optional(bool)
+        })
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        return 1
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        return 'Edge detecting'
 
 class MultiInputEffect(Effect):
     @classmethod
