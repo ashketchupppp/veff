@@ -228,6 +228,32 @@ class Grayscale(SingleInputEffect):
         ''' The name used by the progress bar to tell the user what effect is running '''
         return 'Grayscaling'
 
+class Filter2D(SingleInputEffect):
+    @classmethod
+    def apply(cls, frames: list, kernel: list):
+        ''' OpenCV2 Filter 2D '''
+        assert len(frames) == 1
+        frames[0] = cv2.filter2D(frames[0], -1, np.array(kernel))
+        return frames[0]
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Decreasing frame differencing options '''
+        return Schema({
+            'effect': cls.__name__,
+            'kernel': list
+        })
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        return 1
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        return 'Applying Filter2D'
+
 class MultiInputEffect(Effect):
     @classmethod
     def run(cls, video: VideoReader, effect_config: dict):

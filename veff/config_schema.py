@@ -8,24 +8,16 @@ from utils import (
     is_filetype
 )
 from effects import (
-    Overlay,
-    FrameDifference,
-    Grayscale,
-    IncreasingFrameDifference,
-    DecreasingFrameDifference,
-    PixelRange
+    SingleInputEffect,
+    MultiInputEffect
 )
 
 configSchema = Schema({
     'filepath': And(str, partial(is_filetype, _type='mp4'), is_file),
     'outputFilePath': And(str),
     'effects': [Or(
-        FrameDifference.opt_schema(),
-        Grayscale.opt_schema(),
-        IncreasingFrameDifference.opt_schema(),
-        DecreasingFrameDifference.opt_schema(),
-        PixelRange.opt_schema(),
-        Overlay.opt_schema()
+        *[cls.opt_schema() for cls in SingleInputEffect.__subclasses__()],
+        *[cls.opt_schema() for cls in MultiInputEffect.__subclasses__()]
     )]
 })
 

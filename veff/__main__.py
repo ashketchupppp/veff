@@ -9,7 +9,7 @@ from pathlib import Path, PurePath
 
 import cv2
 
-from utils import temp_file_cleanup, ffmpeg
+from utils import temp_file_cleanup
 from video import VideoReader
 from config_schema import validate_config
 import effects
