@@ -3,7 +3,7 @@ from os import sep
 # This is just an example configuration
 # Edit this and create your own
 
-INPUT_FILE_NAME = 'test_video.mp4'
+INPUT_FILE_NAME = 'kingfisher.mp4'
 
 INPUT_FILE_ROOT = 'videos/originals'
 INPUT_FILE_PATH = INPUT_FILE_ROOT + sep + INPUT_FILE_NAME
@@ -21,11 +21,16 @@ CONFIG = {
     'filepath': f'{INPUT_FILE_ROOT}{sep}{INPUT_FILE_NAME}',
     'effects': [
         {
-            'effect': 'Overlay',
-            'videos': [
-                INPUT_FILE_PATH,
-                INPUT_FILE_ROOT + sep + 'living_beings.mp4'
+            'effect': 'Filter2D',
+            'kernel': [
+                [-1, -1, -1],
+                [-1, 8, -1],
+                [-1, -1, -1]
             ]
+        },
+        {
+            'effect': 'FrameDifference',
+            'batch_size': 2
         }
     ]
 }
