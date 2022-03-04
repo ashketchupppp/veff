@@ -9,8 +9,25 @@ import shutil
 
 import platform
 import numpy as np
+from scipy.special import comb
 
 temp_location = '.' + os.path.sep + 'temp'
+
+def smoothstep(x, x_min=0, x_max=1, N=1):
+    x = np.clip((x - x_min) / (x_max - x_min), 0, 1)
+
+    result = 0
+    for n in range(0, N + 1):
+         result += comb(N + n, n) * comb(2 * N + 1, N - n) * (-x) ** n
+
+    result *= x ** (N + 1)
+
+    return result
+
+def normalise(arr: np.ndarray):
+    ''' Squashes all values in arr between 0 and 1, relative to the smallest and largest numbers in arr '''
+    minimum = np.min(arr)
+    return (arr - minimum) / (np.max(arr) - minimum)
 
 def get_temp_file(extension=''):
     ''' Opens and returns a temporary file which will be deleted when the file is closed. '''

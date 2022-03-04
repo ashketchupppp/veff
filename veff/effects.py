@@ -1,5 +1,6 @@
 ''' Video effects '''
 
+from pyclbr import Function
 from scipy import signal
 import numpy as np
 import cv2
@@ -41,7 +42,10 @@ class SingleInputEffect(Effect):
             del effect_config['batch_size']
         del effect_config['effect']
 
-
+        # if the user configures a function for the effect then it needs to be
+        # run in each loop
+        user_functions = { f:effect_config[f] for f in effect_config if 'func_' in f }
+        user_function_results = { f:None for f in effect_config }
         writer = VideoWriter(
             get_temp_file(extension='mp4'),
             width=video.width,
@@ -54,7 +58,19 @@ class SingleInputEffect(Effect):
 
         while video.frames_read < video.frame_count:
             if len(batch_frames) > 0:
-                frame = cls.apply(batch_frames, **effect_config)
+                for func in user_function_results:
+                    user_function_results[func] = user_functions[func](
+                        width=video.width,
+                        height=video.height,
+                        fps=video.fps,
+                        frameNo=video.frames_read
+                    )
+                args = {
+                    **effect_config,
+                    **user_function_results
+                }
+                
+                frame = cls.apply(batch_frames, **args)
                 writer.write(frame)
                 batch_frames.pop(0)
                 batch_frames = [*batch_frames, *video.read(1)]
@@ -289,6 +305,40 @@ class CannyEdge(SingleInputEffect):
     def progress_name(cls):
         ''' The name used by the progress bar to tell the user what effect is running '''
         return 'Edge detecting'
+
+class FunctionMultiplier(SingleInputEffect):
+    ''' Applies a multiplier to the image.
+        The multiplier must be the same size as the image and it controls the brightness of each pixel.
+        The function that is passed calculates the contents of the multiplier array based on anything
+        you like really. A good example is a mathematical function. The function passed must look like
+        the following:
+            def f(width: int, height: int:, fps: int, frameNo: int):
+                return int or float or np.array (that can be multiplied by the frame np.array)
+    '''
+    @classmethod
+    def apply(cls, frames: list, func_multiplier: dict):
+        ''' Canny edge detector '''
+        assert len(frames) == 1
+        frames[0] = frames[0] * func_multiplier
+        return frames[0]
+
+    @classmethod
+    def opt_schema(cls):
+        ''' Canny edge detector '''
+        return Schema({
+            'effect': cls.__name__,
+            'func_multiplier': lambda f: callable(f)
+        })
+
+    @classmethod
+    def batch_size(cls):
+        ''' Number of frames needed for the effect to run '''
+        return 1
+
+    @classmethod
+    def progress_name(cls):
+        ''' The name used by the progress bar to tell the user what effect is running '''
+        return 'User function multiplication'
 
 class MultiInputEffect(Effect):
     @classmethod
